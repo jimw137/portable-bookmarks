@@ -189,6 +189,7 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
   <div class="menu-list">
     <button id="mImport">Import Brave bookmarks<small>One exported file per profile becomes a page</small></button>
     <button id="mIcons">Find icons for this page<small>Fetches each site's own icon; tiles without one keep their colour</small></button>
+    <button id="mTidy">Tidy names on this page<small>Shortens long web page titles, e.g. “Trees for Sale | Buy…” to “Trees for Sale”</small></button>
     <button id="mPages">Pages<small>Add, rename, reorder or delete profile pages</small></button>
     <button id="mBackup">Save backup file<small>Keep it on your cloud drive to move to another device</small></button>
     <button id="mCopy">Copy backup text<small>For when a file can't be saved here</small></button>
@@ -251,9 +252,9 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
   <h2>Help</h2>
   <div class="help">
     <div><h3>Pages</h3><p>Each page is one Brave profile. Swipe sideways or tap the names along the top. The + at the end of the names adds a page. Menu › Pages renames, reorders or deletes them.</p></div>
-    <div><h3>Bring in your Brave bookmarks</h3><p>On the computer, open Brave in the profile you want, then Menu › Bookmarks › Bookmark manager › the ⋮ button › Export bookmarks. Here, choose Menu › Import Brave bookmarks and pick that file. Repeat for each profile. Brave folders become the groups on the page. Brave on Android can't export, so do this on the computer and move everything to the tablet with a backup file.</p></div>
+    <div><h3>Bring in your Brave bookmarks</h3><p>On the computer, open Brave in the profile you want, then Menu › Bookmarks › Bookmark manager › the ⋮ button › Export bookmarks. Here, choose Menu › Import Brave bookmarks and pick that file. Repeat for each profile. Brave folders become the groups on the page, and long page titles are shortened (Menu › Tidy names on this page does the same for pages already imported; any name can be changed in Arrange). Brave on Android can't export, so do this on the computer and move everything to the tablet with a backup file.</p></div>
     <div><h3>Arrange</h3><p>Tap Arrange. Drag an icon to move it, including into another group. Tap an icon to change its name, address, icon, tile colour, page or group. Tap × to remove it (Undo appears for a few seconds). Tap a group's name to rename or delete it. Tap Done when finished.</p></div>
-    <div><h3>Icons</h3><p>In Arrange, tap an icon, then Find icon. It shows the pictures the website offers (and one from DuckDuckGo); tap the one you like. Menu › Find icons for this page does every bookmark on the page at once. You can also use your own picture, or choose Colour tile to show the name inside a coloured square. The colour wheel at the end of the colours lets you match a site's own colour. Finding icons asks each website (or DuckDuckGo) for its picture, so they learn the site's address and nothing else. Pictures you choose yourself stay on this device.</p></div>
+    <div><h3>Icons</h3><p>In Arrange, tap an icon, then Find icon. It shows the pictures the website offers (and one from DuckDuckGo); tap the one you like. Menu › Find icons for this page does every bookmark on the page at once. You can also use your own picture (or copy a screenshot of a logo and press Ctrl+V while editing; any shape is fitted into the square), or choose Colour tile to show the name inside a coloured square. The colour wheel at the end of the colours lets you match a site's own colour. Finding icons asks each website (or DuckDuckGo) for its picture, so they learn the site's address and nothing else. Pictures you choose yourself stay on this device.</p></div>
     <div><h3>Size</h3><p>The slider sets icon size for the page you're on. Fit picks the largest size that keeps the whole page on screen.</p></div>
     <div><h3>Backups and other devices</h3><p>Bookmarks are kept in this browser on this device only. Save a backup file to your cloud drive, then use Restore from backup on the other device.</p></div>
     <div><h3>Opening links</h3><p>Links open in the browser this app runs in. It can't choose which Brave profile opens them.</p></div>
@@ -305,6 +306,7 @@ function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,'');}catch(e)
 function hash(s){let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))|0;return Math.abs(h);}
 const autoColor=it=>PALETTE[hash(hostOf(it.url)||it.title||'x')%PALETTE.length];
 const colorFor=it=>it.color||autoColor(it);
+function tidyTitle(t){t=(t||'').trim();const parts=t.split(/\s+[|\-–—•·:]\s+|\s*\|\s*/).map(x=>x.trim()).filter(x=>x.length>=2);return parts.length?parts[0]:t;}
 const nameFor=it=>it.label||it.title||hostOf(it.url)||'?';
 function rootOrigin(u){try{const h=new URL(u).hostname.split('.');
   const n=(h.length>2&&h[h.length-1].length===2&&/^(co|org|gov|ac|com|net|me|ltd|plc)$/.test(h[h.length-2]))?3:2;
@@ -497,7 +499,7 @@ $('#fUpload').onclick=()=>$('#fileIcon').click();
 function useImageFile(file){
   if(!file||!/^image\//.test(file.type))return;const fr=new FileReader();
   fr.onload=()=>{const img=new Image();img.onload=()=>{const S=160,cv=document.createElement('canvas');cv.width=cv.height=S;const x=cv.getContext('2d');
-    const k=Math.max(S/img.width,S/img.height),w=img.width*k,h=img.height*k;x.drawImage(img,(S-w)/2,(S-h)/2,w,h);
+    x.fillStyle='#ffffff';x.fillRect(0,0,S,S);const k=Math.min(S*.86/img.width,S*.86/img.height),w=img.width*k,h=img.height*k;x.imageSmoothingQuality='high';x.drawImage(img,(S-w)/2,(S-h)/2,w,h);
     selIcon=cv.toDataURL('image/png');showChoice(selIcon);preview();};img.src=fr.result;};
   fr.readAsDataURL(file);
 }
@@ -573,6 +575,11 @@ $('#mIcons').onclick=fromMenu(async()=>{
   const q=[...todo];await Promise.all([0,1,2,3].map(async()=>{while(q.length)await work(q.shift());}));
   save();render();toast(found?`Found ${found} of ${todo.length} icons. The rest keep their colour tile.`:'No icons found. The tiles keep their colours.');
 });
+$('#mTidy').onclick=fromMenu(()=>{
+  const p=cur(),before=JSON.stringify(p.groups);let n=0;
+  p.groups.forEach(g=>g.items.forEach(it=>{const t=tidyTitle(it.title);if(t&&t!==it.title){it.title=t;n++;}}));
+  save();render();toast(n?`Tidied ${n} name${n>1?'s':''}.`:'Names are already tidy.',n?'Undo':null,()=>{p.groups=JSON.parse(before);save();render();});
+});
 $('#mHelp').onclick=fromMenu(()=>$('#helpDlg').showModal());
 $('#mRestore').onclick=fromMenu(()=>$('#fileRestore').click());
 function backupText(){return JSON.stringify({app:'portable-bookmarks',version:1,saved:new Date().toISOString(),profiles:state.profiles});}
@@ -612,7 +619,7 @@ function parseBrave(html){
     if(path.length>1&&(toolbar||/^(bookmarks bar|other bookmarks|mobile bookmarks)$/i.test(path[0])))path.shift();
     const name=path.join(' › ')||'Bookmarks';
     if(!map.has(name))map.set(name,{id:uid(),name,items:[]});
-    map.get(name).items.push({id:uid(),title:(a.textContent||'').trim()||hostOf(url),url});
+    map.get(name).items.push({id:uid(),title:tidyTitle(a.textContent)||hostOf(url),url});
   });
   return [...map.values()];
 }
