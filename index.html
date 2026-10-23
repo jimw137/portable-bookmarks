@@ -150,6 +150,10 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
 .prow{display:flex;gap:6px;align-items:center}
 .prow input{flex:1;min-width:0;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .prow .btn{padding:8px 10px}
+.grip{flex:0 0 auto;width:34px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:var(--muted);font-size:18px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.grip:hover{background:var(--field)}
+.prow.dragging{opacity:.6}
+.prow.dragging .grip{cursor:grabbing}
 .radio{display:flex;flex-direction:column;gap:8px}
 .radio label{display:flex;gap:8px;align-items:center}
 .help{max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
@@ -226,7 +230,7 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
 
 <dialog id="pagesDlg"><div class="sheet">
   <h2>Pages</h2>
-  <p>One page for each Brave profile.</p>
+  <p>One page for each Brave profile. Drag ⠿ to change the order.</p>
   <div class="plist" id="plist"></div>
   <div class="actions"><button class="btn" id="pAdd">Add page</button><span class="spacer"></span><button class="btn primary" data-close>Done</button></div>
 </div></dialog>
@@ -238,7 +242,7 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
     <label><input type="radio" name="iMode" value="new" checked> As a new page</label>
     <label><input type="radio" name="iMode" value="add"> <span id="iAddLabel">Add to this page</span></label>
   </div>
-  <div class="field" id="iNameField"><label for="iName">Page name (the Brave profile)</label><input id="iName" autocomplete="off"></div>
+  <div class="field" id="iNameField"><label for="iName">Page name (the Brave profile)</label><input id="iName" autocomplete="off" data-protonpass-ignore="true" data-lpignore="true"></div>
   <div class="actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="iGo">Import</button></div>
 </div></dialog>
 
@@ -251,7 +255,7 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
 <dialog id="helpDlg"><div class="sheet">
   <h2>Help</h2>
   <div class="help">
-    <div><h3>Pages</h3><p>Each page is one Brave profile. Swipe sideways or tap the names along the top. The + at the end of the names adds a page. Menu › Pages renames, reorders or deletes them.</p></div>
+    <div><h3>Pages</h3><p>Each page is one Brave profile. Swipe sideways or tap the names along the top. The + at the end of the names adds a page. Menu › Pages renames or deletes them; drag the ⠿ handle up or down to change their order.</p></div>
     <div><h3>Bring in your Brave bookmarks</h3><p>On the computer, open Brave in the profile you want, then Menu › Bookmarks › Bookmark manager › the ⋮ button › Export bookmarks. Here, choose Menu › Import Brave bookmarks and pick that file. Repeat for each profile. Brave folders become the groups on the page, and long page titles are shortened (Menu › Tidy names on this page does the same for pages already imported; any name can be changed in Arrange). Brave on Android can't export, so do this on the computer and move everything to the tablet with a backup file.</p></div>
     <div><h3>Arrange</h3><p>Tap Arrange. Drag an icon to move it, including into another group. Tap an icon to change its name, address, icon, tile colour, page or group. Tap × to remove it (Undo appears for a few seconds). Tap a group's name to rename or delete it. Tap Done when finished.</p></div>
     <div><h3>Icons</h3><p>In Arrange, tap an icon, then Find icon. It shows the pictures the website offers (and one from DuckDuckGo); tap the one you like. Menu › Find icons for this page does every bookmark on the page at once. You can also use your own picture (or copy a screenshot of a logo and press Ctrl+V while editing; any shape is fitted into the square), or choose Colour tile to show the name inside a coloured square. The colour wheel at the end of the colours lets you match a site's own colour. Finding icons asks each website (or DuckDuckGo) for its picture, so they learn the site's address and nothing else. Pictures you choose yourself stay on this device.</p></div>
@@ -444,7 +448,14 @@ function removeItem(id){
 
 /* ---------- dialogs ---------- */
 document.querySelectorAll('dialog').forEach(d=>{
-  d.addEventListener('click',e=>{if(e.target===d||e.target.closest('[data-close]'))d.close();});
+  let downOutside=false;
+  const outside=e=>{if(e.target!==d)return false;const r=d.getBoundingClientRect();
+    return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;};
+  d.addEventListener('pointerdown',e=>{downOutside=outside(e);});
+  d.addEventListener('click',e=>{
+    if(e.target.closest('[data-close]')){d.close();return;}
+    if(downOutside&&outside(e))d.close();
+    downOutside=false;});
 });
 function arm(btn,label,action){
   const orig=btn.textContent;btn.classList.remove('armed');
@@ -547,12 +558,28 @@ function renderPlist(){
   state.profiles.forEach((p,i)=>{
     const r=el('div','prow');const inp=el('input');inp.value=p.name;inp.setAttribute('aria-label','Page name');
     inp.oninput=()=>{p.name=inp.value.trim()||'Profile';save();};
-    const up=el('button','btn','↑');up.title='Move left';up.disabled=i===0;up.onclick=()=>{state.profiles.splice(i-1,0,state.profiles.splice(i,1)[0]);save();renderPlist();};
-    const dn=el('button','btn','↓');dn.title='Move right';dn.disabled=i===state.profiles.length-1;dn.onclick=()=>{state.profiles.splice(i+1,0,state.profiles.splice(i,1)[0]);save();renderPlist();};
+    r.dataset.pid=p.id;
+    const grip=el('span','grip','⠿');grip.title='Drag to reorder';grip.setAttribute('aria-label','Drag to reorder');
+    grip.addEventListener('pointerdown',e=>startPDrag(e,r));
     const del=el('button','btn danger','Delete');del.disabled=state.profiles.length===1;
     arm(del,'Sure?',()=>{state.profiles.splice(i,1);state.current=Math.min(state.current,state.profiles.length-1);save();renderPlist();});
-    r.append(inp,up,dn,del);box.append(r);
+    r.append(grip,inp,del);box.append(r);
   });
+}
+function startPDrag(e,row){
+  e.preventDefault();const box=$('#plist');row.classList.add('dragging');
+  try{e.target.setPointerCapture(e.pointerId);}catch(_){}
+  const move=ev=>{
+    const rows=[...box.children].filter(x=>x!==row);
+    const after=rows.find(x=>{const b=x.getBoundingClientRect();return ev.clientY<b.top+b.height/2;});
+    if(after){if(row.nextSibling!==after)box.insertBefore(row,after);}else if(box.lastChild!==row)box.append(row);
+  };
+  const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);
+    row.classList.remove('dragging');
+    const curId=cur().id,order=[...box.children].map(x=>x.dataset.pid);
+    state.profiles.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+    state.current=Math.max(0,state.profiles.findIndex(p=>p.id===curId));save();renderPlist();};
+  window.addEventListener('pointermove',move);window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);
 }
 function newPage(){state.profiles.push({id:uid(),name:'Profile '+(state.profiles.length+1),zoom:76,groups:[{id:uid(),name:'Bookmarks',items:[]}]});save();}
 $('#pAdd').onclick=()=>{newPage();renderPlist();
@@ -636,6 +663,7 @@ $('#fileImport').onchange=async e=>{
   document.querySelector('input[name=iMode][value=new]').checked=true;$('#iNameField').hidden=false;
   document.querySelector('input[name=iMode][value=add]').parentElement.hidden=!!state.examples;
   $('#importDlg').showModal();
+  setTimeout(()=>{const n=$('#iName');n.focus();n.select();},50);
 };
 document.querySelectorAll('input[name=iMode]').forEach(r=>r.onchange=()=>{$('#iNameField').hidden=r.value!=='new'||!r.checked;});
 $('#iGo').onclick=()=>{
