@@ -195,6 +195,7 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
     <button id="mIcons">Find icons for this page<small>Fetches each site's own icon; tiles without one keep their colour</small></button>
     <button id="mTidy">Tidy names on this page<small>Shortens long web page titles, e.g. “Trees for Sale | Buy…” to “Trees for Sale”</small></button>
     <button id="mPages">Pages<small>Add, rename, reorder or delete profile pages</small></button>
+    <button id="mProfLinks">Open in matching Brave profile: <span id="plState">Off</span><small>Linux only, after installing the helper. Each tile opens in the Brave profile named like its page</small></button>
     <button id="mBackup">Save backup file<small>Keep it on your cloud drive to move to another device</small></button>
     <button id="mCopy">Copy backup text<small>For when a file can't be saved here</small></button>
     <button id="mRestore">Restore from backup<small>Replaces everything with the backup's pages</small></button>
@@ -260,6 +261,7 @@ dialog::backdrop{background:rgba(10,18,18,.42)}
     <div><h3>Arrange</h3><p>Tap Arrange. Drag an icon to move it, including into another group. Tap an icon to change its name, address, icon, tile colour, page or group. Tap × to remove it (Undo appears for a few seconds). Tap a group's name to rename or delete it. Tap Done when finished.</p></div>
     <div><h3>Icons</h3><p>In Arrange, tap an icon, then Find icon. It shows the pictures the website offers (and one from DuckDuckGo); tap the one you like. Menu › Find icons for this page does every bookmark on the page at once. You can also use your own picture (or copy a screenshot of a logo and press Ctrl+V while editing; any shape is fitted into the square), or choose Colour tile to show the name inside a coloured square. The colour wheel at the end of the colours lets you match a site's own colour. Finding icons asks each website (or DuckDuckGo) for its picture, so they learn the site's address and nothing else. Pictures you choose yourself stay on this device.</p></div>
     <div><h3>Size</h3><p>The slider sets icon size for the page you're on. Fit picks the largest size that keeps the whole page on screen.</p></div>
+    <div><h3>Open in the matching Brave profile (Linux)</h3><p>A web app can't choose a Brave profile by itself, so a small helper does it. Install it once on the computer, then turn on Menu › Open in matching Brave profile. Each tile then opens in the Brave profile with the same name as its page, so keep the page names matching the profile names exactly (capitals don't matter). The first time, Brave asks whether to open the link with another app: tick Always allow, then Open. If no profile matches, the link opens in the last-used profile. The switch is for this device only, so the tablet keeps opening links normally.</p></div>
     <div><h3>Backups and other devices</h3><p>Bookmarks are kept in this browser on this device only. Save a backup file to your cloud drive, then use Restore from backup on the other device.</p></div>
     <div><h3>Opening links</h3><p>Links open in the browser this app runs in. It can't choose which Brave profile opens them.</p></div>
   </div>
@@ -436,8 +438,22 @@ function syncFromDOM(page){
     if(g)g.items=[...gEl.querySelectorAll('.tile')].map(t=>all.get(t.dataset.id)).filter(Boolean);});
   save();render();
 }
+/* open in matching Brave profile (Linux helper); setting is per device, not in backups */
+const PL_KEY='pb-profile-links';
+let profLinks=false;try{profLinks=localStorage.getItem(PL_KEY)==='1';}catch(e){}
+function showPL(){$('#plState').textContent=profLinks?'On':'Off';}
+showPL();
+$('#mProfLinks').onclick=()=>{profLinks=!profLinks;try{localStorage.setItem(PL_KEY,profLinks?'1':'0');}catch(e){}showPL();
+  toast(profLinks?'On. Bookmarks open in the Brave profile named like their page.':'Off. Bookmarks open normally.');};
 pagesEl.addEventListener('click',e=>{
-  const t=e.target.closest('.tile');if(!t||!arranging)return;e.preventDefault();if(suppress)return;
+  const t=e.target.closest('.tile');
+  if(t&&!arranging&&profLinks&&e.button===0&&!e.ctrlKey&&!e.shiftKey&&!e.metaKey){
+    const pg=state.profiles.find(x=>x.id===t.closest('.page').dataset.pid);
+    e.preventDefault();
+    location.href='braveprofile://open?p='+encodeURIComponent(pg?pg.name:'')+'&u='+encodeURIComponent(t.getAttribute('href'));
+    return;
+  }
+  if(!t||!arranging)return;e.preventDefault();if(suppress)return;
   if(e.target.closest('.remove'))removeItem(t.dataset.id);else openEdit(t.dataset.id);
 });
 pagesEl.addEventListener('contextmenu',e=>{if(arranging&&e.target.closest('.tile'))e.preventDefault();});
