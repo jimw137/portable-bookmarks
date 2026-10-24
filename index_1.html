@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d6a63">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Portable Bookmarks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+img{max-width:100%}
+/* Layout: a phone home screen — page names along the top, one swipeable page per Brave profile, rounded letter tiles in folder groups, a dock at the bottom */
+:root{
+  --bg:#e7ecea; --wall:#cfe0db; --fg:#1b2628; --muted:#5a6a6b;
+  --bar:rgba(251,252,251,.8); --line:rgba(27,38,40,.12);
+  --accent:#1d6a63; --accent-fg:#ffffff; --sheet:#fbfcfb; --field:#edf1f0;
+  --danger:#b03a3a; --shadow:rgba(20,35,35,.18);
+  --font-ui:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-display:"Bricolage Grotesque","Figtree",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111719; --wall:#1c2d2b; --fg:#e7eeec; --muted:#93a4a3;
+  --bar:rgba(24,32,34,.84); --line:rgba(231,238,236,.13);
+  --accent:#5cc2b4; --accent-fg:#0d1a19; --sheet:#1a2224; --field:#243032;
+  --danger:#ef7b7b; --shadow:rgba(0,0,0,.45); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#111719; --wall:#1c2d2b; --fg:#e7eeec; --muted:#93a4a3;
+  --bar:rgba(24,32,34,.84); --line:rgba(231,238,236,.13);
+  --accent:#5cc2b4; --accent-fg:#0d1a19; --sheet:#1a2224; --field:#243032;
+  --danger:#ef7b7b; --shadow:rgba(0,0,0,.45); color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:var(--font-ui);font-size:15px;color:var(--fg);
+  background:radial-gradient(120% 70% at 0% 0%,var(--wall) 0%,transparent 65%),var(--bg);overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{height:100%;display:flex;flex-direction:column}
+
+/* top: page names */
+.top{display:flex;align-items:center;gap:8px;padding:10px 16px 6px}
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;padding:2px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;border:1px solid var(--line);background:var(--bar);border-radius:999px;padding:6px 14px;font-weight:600;font-size:14px;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+
+/* pages */
+.pages{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none}
+.pages::-webkit-scrollbar{display:none}
+.page{flex:0 0 100%;scroll-snap-align:start;overflow-y:auto;padding-inline:16px;padding-block:6px 20px}
+.page-inner{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.page-name{font-family:var(--font-display);font-weight:700;font-size:clamp(26px,5vw,38px);letter-spacing:-.01em;margin:4px 0 0;text-wrap:balance}
+.group{display:flex;flex-direction:column;gap:10px}
+.group-head{display:flex;align-items:baseline;gap:8px}
+.group-name{background:none;border:0;padding:0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);text-align:left;cursor:default}
+.arranging .group-name{cursor:pointer;color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px}
+.group-count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;opacity:.7}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(var(--tile,76px) + 14px),1fr));gap:calc(var(--tile,76px) * .2) 4px;justify-items:center}
+.arranging .grid{min-height:calc(var(--tile,76px) + 30px);border:1.5px dashed var(--line);border-radius:18px;padding:8px}
+
+/* tiles */
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;width:calc(var(--tile,76px) + 14px);text-decoration:none;color:var(--fg);-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.icon{width:var(--tile,76px);height:var(--tile,76px);border-radius:calc(var(--tile,76px) * .26);display:grid;place-items:center;overflow:hidden;
+  color:#fff;font-family:var(--font-display);font-weight:700;letter-spacing:-.01em;flex:0 0 auto;
+  box-shadow:0 1px 2px var(--shadow),0 4px 12px var(--shadow),inset 0 1px 0 rgba(255,255,255,.22);transition:transform .15s}
+.iname{padding:9%;text-align:center;line-height:1.1;font-size:calc(var(--tile,76px) * .17);overflow-wrap:anywhere;hyphens:auto;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.iname.mid{font-size:calc(var(--tile,76px) * .21)}
+.iname.short{font-size:calc(var(--tile,76px) * .3)}
+.icon img{width:100%;height:100%;object-fit:cover;display:block}
+.icon.img-small img{width:62%;height:62%;object-fit:contain}
+.tile:not(.has-img) .label{display:none}
+.tile:not(.has-img){gap:0}
+.tile:hover .icon{transform:translateY(-2px)}
+.label{font-size:clamp(11px,calc(var(--tile,76px) * .16),15px);line-height:1.25;text-align:center;max-width:100%;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.remove{display:none;position:absolute;top:-6px;left:0;width:24px;height:24px;border-radius:50%;background:var(--fg);color:var(--bg);
+  font-size:17px;line-height:22px;text-align:center;font-weight:700;box-shadow:0 1px 3px var(--shadow)}
+.arranging .remove{display:block}
+.arranging .tile{touch-action:none;cursor:grab}
+.arranging .icon{animation:wiggle .28s ease-in-out infinite alternate}
+.arranging .tile:nth-child(2n) .icon{animation-delay:-.14s}
+.tile.dragging{opacity:.55;z-index:2}
+.tile.dragging .icon{animation:none;transform:scale(1.1)}
+@keyframes wiggle{from{transform:rotate(-1.6deg)}to{transform:rotate(1.6deg)}}
+@media (prefers-reduced-motion: reduce){.arranging .icon{animation:none}.icon{transition:none}}
+
+.banner,.empty{border:1px solid var(--line);background:var(--bar);border-radius:16px;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.banner p,.empty p{margin:0;flex:1 1 220px;color:var(--muted)}
+.add-group{align-self:flex-start}
+
+/* dock */
+.dots{display:flex;justify-content:center;gap:7px;padding:6px 0}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);opacity:.35;border:0;padding:0}
+.dot.on{opacity:1;background:var(--accent)}
+.dock{margin:0 12px 12px;padding:8px 10px;border:1px solid var(--line);background:var(--bar);border-radius:22px;
+  display:flex;align-items:center;gap:6px;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 6px 20px var(--shadow)}
+.ibtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;min-width:40px;padding:0 10px;border-radius:12px;border:0;background:transparent;font-weight:600;font-size:14px}
+.ibtn:hover{background:var(--field)}
+.ibtn svg{width:20px;height:20px;flex:0 0 auto}
+.ibtn.on{background:var(--accent);color:var(--accent-fg)}
+.zoom{flex:1;min-width:60px;display:flex;align-items:center;gap:6px;color:var(--muted)}
+.zoom input{flex:1;min-width:0;accent-color:var(--accent)}
+.zoom .s{font-size:11px;font-weight:700}.zoom .l{font-size:17px;font-weight:700}
+@media (max-width:480px){.ibtn .t{display:none}}
+
+/* sheets */
+dialog{border:0;padding:0;background:var(--sheet);color:var(--fg);border-radius:22px;width:min(460px,calc(100% - 24px));max-height:calc(100% - 32px);box-shadow:0 20px 60px var(--shadow)}
+dialog::backdrop{background:rgba(10,18,18,.42)}
+.sheet{padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px}
+.sheet h2{font-family:var(--font-display);font-size:22px;margin:0}
+.sheet p{margin:0;color:var(--muted);line-height:1.45}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label,.fl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.field input,.field select{background:var(--field);border:1px solid var(--line);border-radius:12px;padding:10px 12px;width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>.field{flex:1 1 140px;min-width:0}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:32px;height:32px;border-radius:10px;border:2px solid transparent;color:#fff;font-size:10px;font-weight:700}
+.sw[aria-pressed="true"]{border-color:var(--fg);box-shadow:0 0 0 2px var(--sheet) inset}
+.preview{display:flex;align-items:center;gap:12px}
+.preview .icon{--tile:64px}
+.found{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-height:20px}
+.found .opt{width:52px;height:52px;border-radius:14px;border:2px solid var(--line);background:#fff;padding:0;overflow:hidden;display:grid;place-items:center}
+.found .opt img{width:100%;height:100%;object-fit:contain}
+.found .opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.found .note{font-size:13px;color:var(--muted)}
+.sw.custom{position:relative;overflow:hidden;background:conic-gradient(#e44,#ec4,#4c6,#4ae,#a4e,#e44)}
+.sw.custom input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.tab.addp{color:var(--accent);font-size:16px;padding:4px 12px}
+.actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--field);border-radius:12px;padding:9px 16px;font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+.btn.danger{color:var(--danger)}
+.btn.armed{background:var(--danger);color:#fff;border-color:transparent}
+.spacer{flex:1}
+.menu-list{display:flex;flex-direction:column;gap:4px}
+.menu-list button{text-align:left;border:0;background:transparent;padding:12px;border-radius:12px;font-weight:600;display:flex;flex-direction:column;gap:2px}
+.menu-list button:hover{background:var(--field)}
+.menu-list small{font-weight:400;color:var(--muted)}
+.plist{display:flex;flex-direction:column;gap:8px}
+.prow{display:flex;gap:6px;align-items:center}
+.prow input{flex:1;min-width:0;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.prow .btn{padding:8px 10px}
+.grip{flex:0 0 auto;width:34px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:10px;color:var(--muted);font-size:18px;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.grip:hover{background:var(--field)}
+.prow.dragging{opacity:.6}
+.prow.dragging .grip{cursor:grabbing}
+.radio{display:flex;flex-direction:column;gap:8px}
+.radio label{display:flex;gap:8px;align-items:center}
+.help{max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.help h3{margin:0;font-size:14px}
+.help p{color:var(--fg);opacity:.85}
+.err{color:var(--danger);font-size:13px}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);
+  border-radius:14px;padding:10px 14px;display:flex;gap:12px;align-items:center;max-width:calc(100% - 32px);box-shadow:0 8px 24px var(--shadow);z-index:10}
+.toast-btn{background:none;border:0;color:var(--accent);font-weight:700;filter:brightness(1.3)}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Pages"></nav>
+  </header>
+  <main class="pages" id="pages"></main>
+  <div class="dots" id="dots"></div>
+  <footer class="dock">
+    <button class="ibtn" id="bAdd" title="Add bookmark" aria-label="Add bookmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+    <div class="zoom"><span class="s">A</span><input type="range" id="zoom" min="44" max="128" step="2" aria-label="Icon size"><span class="l">A</span></div>
+    <button class="ibtn" id="bFit" title="Fit page to screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span class="t">Fit</span></button>
+    <button class="ibtn" id="bArrange" title="Arrange icons"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1.8"/><rect x="14" y="4" width="6" height="6" rx="1.8"/><rect x="4" y="14" width="6" height="6" rx="1.8"/><rect x="14" y="14" width="6" height="6" rx="1.8"/></svg><span class="t" id="arrLabel">Arrange</span></button>
+    <button class="ibtn" id="bMenu" title="Menu" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </footer>
+</div>
+
+<input type="file" id="fileImport" accept=".html,.htm,text/html" hidden>
+<input type="file" id="fileRestore" accept=".json,application/json" hidden>
+<input type="file" id="fileIcon" accept="image/*" hidden>
+<div class="toast" id="toast" hidden></div>
+
+<dialog id="menu"><div class="sheet">
+  <h2>Menu</h2>
+  <div class="menu-list">
+    <button id="mImport">Import Brave bookmarks<small>One exported file per profile becomes a page</small></button>
+    <button id="mIcons">Find icons for this page<small>Fetches each site's own icon; tiles without one keep their colour</small></button>
+    <button id="mTidy">Tidy names on this page<small>Shortens long web page titles, e.g. “Trees for Sale | Buy…” to “Trees for Sale”</small></button>
+    <button id="mPages">Pages<small>Add, rename, reorder or delete profile pages</small></button>
+    <button id="mProfLinks">Open in matching Brave profile: <span id="plState">Off</span><small>Linux only, after installing the helper. Each tile opens in the Brave profile named like its page</small></button>
+    <button id="mBackup">Save backup file<small>Keep it on your cloud drive to move to another device</small></button>
+    <button id="mCopy">Copy backup text<small>For when a file can't be saved here</small></button>
+    <button id="mRestore">Restore from backup<small>Replaces everything with the backup's pages</small></button>
+    <button id="mHelp">Help</button>
+  </div>
+  <div class="actions"><button class="btn" data-close>Close</button></div>
+</div></dialog>
+
+<dialog id="edit"><div class="sheet">
+  <h2 id="editTitle">Edit bookmark</h2>
+  <div class="preview"><span class="icon" id="pvIcon">A</span><span id="pvLabel" style="font-weight:600;min-width:0;overflow-wrap:anywhere"></span></div>
+  <div class="field"><label for="fTitle">Name</label><input id="fTitle" autocomplete="off"></div>
+  <div class="field"><label for="fUrl">Web address</label><input id="fUrl" inputmode="url" autocomplete="off" placeholder="example.com"></div>
+  <div class="field"><span class="fl">Icon</span>
+    <div class="row" style="gap:8px"><button class="btn" id="fFind" type="button">Find icon</button><button class="btn" id="fUpload" type="button">Use my own picture</button><button class="btn" id="fNoImg" type="button">Colour tile</button></div>
+    <div class="found" id="found"></div>
+  </div>
+  <div class="field"><label for="fLetters">Name on tile</label><input id="fLetters" maxlength="24" placeholder="Same as name" autocomplete="off"></div>
+  <div class="field"><span class="fl">Tile colour</span><div class="swatches" id="swatches"></div></div>
+  <div class="row">
+    <div class="field"><label for="fPage">Page</label><select id="fPage"></select></div>
+    <div class="field"><label for="fGroup">Group</label><select id="fGroup"></select></div>
+  </div>
+  <div class="err" id="fErr" hidden>Add a web address.</div>
+  <div class="actions"><button class="btn danger" id="fDelete">Delete</button><span class="spacer"></span><button class="btn" data-close>Cancel</button><button class="btn primary" id="fSave">Save</button></div>
+</div></dialog>
+
+<dialog id="group"><div class="sheet">
+  <h2>Group</h2>
+  <div class="field"><label for="gName">Group name</label><input id="gName" autocomplete="off"></div>
+  <div class="actions"><button class="btn danger" id="gDelete">Delete group</button><span class="spacer"></span><button class="btn" data-close>Cancel</button><button class="btn primary" id="gSave">Save</button></div>
+</div></dialog>
+
+<dialog id="pagesDlg"><div class="sheet">
+  <h2>Pages</h2>
+  <p>One page for each Brave profile. Drag ⠿ to change the order.</p>
+  <div class="plist" id="plist"></div>
+  <div class="actions"><button class="btn" id="pAdd">Add page</button><span class="spacer"></span><button class="btn primary" data-close>Done</button></div>
+</div></dialog>
+
+<dialog id="importDlg"><div class="sheet">
+  <h2>Import bookmarks</h2>
+  <p id="iSummary"></p>
+  <div class="radio">
+    <label><input type="radio" name="iMode" value="new" checked> As a new page</label>
+    <label><input type="radio" name="iMode" value="add"> <span id="iAddLabel">Add to this page</span></label>
+  </div>
+  <div class="field" id="iNameField"><label for="iName">Page name (the Brave profile)</label><input id="iName" autocomplete="off" data-protonpass-ignore="true" data-lpignore="true"></div>
+  <div class="actions"><button class="btn" data-close>Cancel</button><button class="btn primary" id="iGo">Import</button></div>
+</div></dialog>
+
+<dialog id="confirmDlg"><div class="sheet">
+  <h2 id="cTitle">Are you sure?</h2>
+  <p id="cMsg"></p>
+  <div class="actions"><button class="btn" id="cNo">Cancel</button><button class="btn primary" id="cYes">OK</button></div>
+</div></dialog>
+
+<dialog id="helpDlg"><div class="sheet">
+  <h2>Help</h2>
+  <div class="help">
+    <div><h3>Pages</h3><p>Each page is one Brave profile. Swipe sideways or tap the names along the top. The + at the end of the names adds a page. Menu › Pages renames or deletes them; drag the ⠿ handle up or down to change their order.</p></div>
+    <div><h3>Bring in your Brave bookmarks</h3><p>On the computer, open Brave in the profile you want, then Menu › Bookmarks › Bookmark manager › the ⋮ button › Export bookmarks. Here, choose Menu › Import Brave bookmarks and pick that file. Repeat for each profile. Brave folders become the groups on the page, and long page titles are shortened (Menu › Tidy names on this page does the same for pages already imported; any name can be changed in Arrange). Brave on Android can't export, so do this on the computer and move everything to the tablet with a backup file.</p></div>
+    <div><h3>Arrange</h3><p>Tap Arrange. Drag an icon to move it, including into another group. Tap an icon to change its name, address, icon, tile colour, page or group. Tap × to remove it (Undo appears for a few seconds). Tap a group's name to rename or delete it. Tap Done when finished.</p></div>
+    <div><h3>Icons</h3><p>In Arrange, tap an icon, then Find icon. It shows the pictures the website offers (and one from DuckDuckGo); tap the one you like. Menu › Find icons for this page does every bookmark on the page at once. You can also use your own picture (or copy a screenshot of a logo and press Ctrl+V while editing; any shape is fitted into the square), or choose Colour tile to show the name inside a coloured square. The colour wheel at the end of the colours lets you match a site's own colour. Finding icons asks each website (or DuckDuckGo) for its picture, so they learn the site's address and nothing else. Pictures you choose yourself stay on this device.</p></div>
+    <div><h3>Size</h3><p>The slider sets icon size for the page you're on. Fit picks the largest size that keeps the whole page on screen.</p></div>
+    <div><h3>Open in the matching Brave profile (Linux)</h3><p>A web app can't choose a Brave profile by itself, so a small helper does it. Install it once on the computer, then turn on Menu › Open in matching Brave profile. Each tile then opens in the Brave profile with the same name as its page, so keep the page names matching the profile names exactly (capitals don't matter). The first time, Brave asks whether to open the link with another app: tick Always allow, then Open. If no profile matches, the link opens in the last-used profile. The switch is for this device only, so the tablet keeps opening links normally.</p></div>
+    <div><h3>Backups and other devices</h3><p>Bookmarks are kept in this browser on this device only. Save a backup file to your cloud drive, then use Restore from backup on the other device.</p></div>
+    <div><h3>Opening links</h3><p>Links open in the browser this app runs in. It can't choose which Brave profile opens them.</p></div>
+  </div>
+  <div class="actions"><button class="btn primary" data-close>Close</button></div>
+</div></dialog>
+
+<script>
+(function(){
+const KEY='portable-bookmarks-v1';
+const PALETTE=['#2f6f9f','#3a8a5c','#b5562f','#7a4fa0','#bf8424','#2b7f86','#a8435f','#4b5aa8','#5f7d2f','#8a5a3c','#cf6450','#36667a'];
+const BRAND=['#d93025','#ff6a13','#ffc61a','#0f9d58','#1877f2','#6e40c9','#e1306c','#1a1a1a','#f4f4f4'];
+function textOn(hex){const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex||'');if(!m)return '#fff';
+  const [r,g,b]=m.slice(1).map(x=>{x=parseInt(x,16)/255;return x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4);});
+  return (.2126*r+.7152*g+.0722*b)>.45?'#1b1b1b':'#ffffff';}
+const $=s=>document.querySelector(s);
+const uid=()=>Math.random().toString(36).slice(2,10);
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+
+/* ---------- data ---------- */
+function sample(){
+  const mk=(t,u)=>({id:uid(),title:t,url:u});
+  const g=(n,items)=>({id:uid(),name:n,items});
+  return {examples:true,current:0,profiles:[
+    {id:uid(),name:'Everyday',zoom:76,groups:[
+      g('News & weather',[mk('BBC Weather','https://www.bbc.co.uk/weather'),mk('BBC News','https://www.bbc.co.uk/news'),mk('Met Office','https://www.metoffice.gov.uk')]),
+      g('Privacy & Linux',[mk('Proton Mail','https://mail.proton.me'),mk('DistroWatch','https://distrowatch.com'),mk('Arch Wiki','https://wiki.archlinux.org'),mk('EFF','https://www.eff.org'),mk('Privacy Guides','https://www.privacyguides.org')]),
+      g('Reference',[mk('Wikipedia','https://en.wikipedia.org'),mk('OpenStreetMap','https://www.openstreetmap.org'),mk('Internet Archive','https://archive.org')])]},
+    {id:uid(),name:'Garden',zoom:84,groups:[
+      g('Plant care',[mk('RHS','https://www.rhs.org.uk'),mk('Kew Gardens','https://www.kew.org'),mk("Gardeners' World",'https://www.gardenersworld.com')]),
+      g('Suppliers',[mk('Sarah Raven','https://www.sarahraven.com'),mk('Crocus','https://www.crocus.co.uk'),mk('Thompson & Morgan','https://www.thompson-morgan.com')])]},
+    {id:uid(),name:'Learning',zoom:92,groups:[
+      g('Courses & videos',[mk('YouTube','https://www.youtube.com'),mk('Khan Academy','https://www.khanacademy.org'),mk('OpenLearn','https://www.open.edu/openlearn'),mk('Claude','https://claude.ai')])]}
+  ]};
+}
+function valid(s){return s&&Array.isArray(s.profiles)&&s.profiles.length&&s.profiles.every(p=>p&&Array.isArray(p.groups));}
+function tidy(s){
+  s.profiles.forEach(p=>{p.id=p.id||uid();p.name=p.name||'Profile';p.zoom=+p.zoom||76;
+    p.groups.forEach(g=>{g.id=g.id||uid();g.name=g.name||'Bookmarks';g.items=(g.items||[]).filter(i=>i&&i.url).map(i=>(i.id=i.id||uid(),i));});});
+  s.current=Math.min(Math.max(0,s.current|0),s.profiles.length-1);return s;
+}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));return valid(s)?tidy(s):null;}catch(e){return null;}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+let state=load()||sample();
+let arranging=false;
+const cur=()=>state.profiles[state.current]||state.profiles[0];
+function findItem(id){for(const p of state.profiles)for(const g of p.groups){const i=g.items.findIndex(x=>x.id===id);if(i>-1)return{p,g,i,it:g.items[i]};}return null;}
+function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,'');}catch(e){return '';}}
+function hash(s){let h=7;for(const c of s)h=(h*31+c.charCodeAt(0))|0;return Math.abs(h);}
+const autoColor=it=>PALETTE[hash(hostOf(it.url)||it.title||'x')%PALETTE.length];
+const colorFor=it=>it.color||autoColor(it);
+function tidyTitle(t){t=(t||'').trim();const parts=t.split(/\s+[|\-–—•·:]\s+|\s*\|\s*/).map(x=>x.trim()).filter(x=>x.length>=2);return parts.length?parts[0]:t;}
+const nameFor=it=>it.label||it.title||hostOf(it.url)||'?';
+function rootOrigin(u){try{const h=new URL(u).hostname.split('.');
+  const n=(h.length>2&&h[h.length-1].length===2&&/^(co|org|gov|ac|com|net|me|ltd|plc)$/.test(h[h.length-2]))?3:2;
+  return 'https://'+h.slice(-n).join('.');}catch(e){return '';}}
+function iconSources(u){
+  let o;try{o=new URL(u).origin;}catch(e){return [];}const r=rootOrigin(u),h=hostOf(u),s=[o+'/apple-touch-icon.png',o+'/apple-touch-icon-precomposed.png'];
+  if(r&&r!==o.replace('://www.','://'))s.push(r+'/apple-touch-icon.png');
+  s.push(o+'/favicon.ico','https://icons.duckduckgo.com/ip3/'+h+'.ico');return s;
+}
+function probe(src,ms=7000){return new Promise(res=>{const i=new Image();i.referrerPolicy='no-referrer';let done=false;
+  const fin=v=>{if(!done){done=true;res(v);}};i.onload=()=>fin(i.naturalWidth>=16?{src,w:i.naturalWidth}:null);i.onerror=()=>fin(null);
+  setTimeout(()=>fin(null),ms);i.src=src;});}
+const total=p=>p.groups.reduce((n,g)=>n+g.items.length,0);
+
+/* ---------- render ---------- */
+const pagesEl=$('#pages'),tabsEl=$('#tabs'),dotsEl=$('#dots');
+function nameSpan(it){const n=nameFor(it),s=el('span','iname',n);const longest=Math.max(...n.split(/\s+/).map(w=>w.length));
+  if(n.length<=4)s.classList.add('short');else if(n.length<=12&&longest<=8)s.classList.add('mid');return s;}
+function iconEl(it,tileEl){
+  const c=colorFor(it),ic=el('span','icon');ic.style.background=c;ic.style.color=textOn(c);
+  const showName=()=>{ic.innerHTML='';ic.classList.remove('img-small');ic.style.background=c;ic.append(nameSpan(it));if(tileEl)tileEl.classList.remove('has-img');};
+  if(it.icon){
+    const img=new Image();img.alt='';img.referrerPolicy='no-referrer';img.decoding='async';img.draggable=false;
+    img.onload=()=>{if(img.naturalWidth<96){ic.classList.add('img-small');ic.style.background='#ffffff';}};
+    img.onerror=showName;img.src=it.icon;ic.append(img);if(tileEl)tileEl.classList.add('has-img');
+  }else showName();
+  return ic;
+}
+function tile(it){
+  const a=document.createElement('a');a.className='tile';a.href=it.url;a.target='_blank';a.rel='noopener noreferrer';
+  a.dataset.id=it.id;a.title=(it.title||'')+'\n'+it.url;a.draggable=false;
+  const x=el('span','remove','×');x.setAttribute('aria-label','Remove');
+  a.append(iconEl(it,a),el('span','label',it.title||hostOf(it.url)),x);return a;
+}
+function render(){
+  pagesEl.innerHTML='';tabsEl.innerHTML='';dotsEl.innerHTML='';
+  state.profiles.forEach((p,i)=>{
+    const sec=el('section','page');sec.dataset.pid=p.id;sec.style.setProperty('--tile',p.zoom+'px');sec.setAttribute('aria-label',p.name);
+    const inner=el('div','page-inner');
+    inner.append(el('h1','page-name',p.name));
+    if(state.examples&&i===0){
+      const b=el('div','banner');b.append(el('p',null,'These pages are examples. Import your Brave bookmarks and they are replaced.'));
+      const bi=el('button','btn primary','Import');bi.onclick=()=>$('#fileImport').click();
+      const bc=el('button','btn','Clear examples');bc.onclick=clearExamples;b.append(bi,bc);inner.append(b);
+    }
+    p.groups.forEach(g=>{
+      if(!arranging&&!g.items.length)return;
+      const gs=el('div','group');gs.dataset.gid=g.id;
+      const gh=el('div','group-head');const gn=el('button','group-name',g.name);gn.type='button';
+      gn.onclick=()=>{if(arranging)openGroup(p,g);};
+      gh.append(gn,el('span','group-count',String(g.items.length)));
+      const grid=el('div','grid');g.items.forEach(it=>grid.append(tile(it)));
+      gs.append(gh,grid);inner.append(gs);
+    });
+    if(arranging){const ag=el('button','btn add-group','+ New group');ag.onclick=()=>{p.groups.push({id:uid(),name:'New group',items:[]});save();render();};inner.append(ag);}
+    else if(!total(p)){
+      const e=el('div','empty');e.append(el('p',null,'No bookmarks on this page yet.'));
+      const ei=el('button','btn primary','Import');ei.onclick=()=>$('#fileImport').click();
+      const ea=el('button','btn','Add one');ea.onclick=()=>openEdit(null);e.append(ei,ea);inner.append(e);
+    }
+    sec.append(inner);pagesEl.append(sec);
+    const t=el('button','tab',p.name);t.setAttribute('role','tab');t.onclick=()=>goTo(i);tabsEl.append(t);
+    const d=el('button','dot');d.setAttribute('aria-label',p.name);d.onclick=()=>goTo(i);dotsEl.append(d);
+  });
+  const ap=el('button','tab addp','+');ap.title='Add a page';ap.setAttribute('aria-label','Add a page');ap.onclick=addPage;tabsEl.append(ap);
+  document.body.classList.toggle('arranging',arranging);
+  $('#bArrange').classList.toggle('on',arranging);$('#arrLabel').textContent=arranging?'Done':'Arrange';
+  requestAnimationFrame(()=>goTo(state.current,false));
+}
+function goTo(i,smooth=true){
+  i=Math.max(0,Math.min(i,state.profiles.length-1));state.current=i;
+  pagesEl.scrollTo({left:i*pagesEl.clientWidth,behavior:smooth?'smooth':'auto'});mark();save();
+}
+function mark(){
+  [...tabsEl.children].forEach((t,i)=>t.setAttribute('aria-selected',i===state.current));
+  [...dotsEl.children].forEach((d,i)=>d.classList.toggle('on',i===state.current));
+  const t=tabsEl.children[state.current];if(t)t.scrollIntoView({inline:'nearest',block:'nearest'});
+  $('#zoom').value=cur().zoom;
+}
+let scrollT;
+pagesEl.addEventListener('scroll',()=>{clearTimeout(scrollT);scrollT=setTimeout(()=>{
+  const i=Math.round(pagesEl.scrollLeft/Math.max(1,pagesEl.clientWidth));if(i!==state.current){state.current=i;mark();save();}},80);},{passive:true});
+window.addEventListener('resize',()=>pagesEl.scrollTo({left:state.current*pagesEl.clientWidth}));
+document.addEventListener('keydown',e=>{if(e.target.closest('input,select,textarea,dialog'))return;
+  if(e.key==='ArrowRight')goTo(state.current+1);if(e.key==='ArrowLeft')goTo(state.current-1);});
+
+/* ---------- size ---------- */
+const pageEl=p=>pagesEl.querySelector(`.page[data-pid="${p.id}"]`);
+$('#zoom').addEventListener('input',e=>{const p=cur();p.zoom=+e.target.value;const s=pageEl(p);if(s)s.style.setProperty('--tile',p.zoom+'px');save();});
+$('#bFit').onclick=()=>{
+  const p=cur(),s=pageEl(p);if(!s)return;let z=128;
+  for(;z>44;z-=2){s.style.setProperty('--tile',z+'px');if(s.scrollHeight<=s.clientHeight+1)break;}
+  p.zoom=z;$('#zoom').value=z;save();toast(z<=44?'Smallest size; this page still scrolls.':'Fitted to the screen.');
+};
+
+/* ---------- arrange & drag ---------- */
+$('#bArrange').onclick=()=>{arranging=!arranging;render();};
+let drag=null,suppress=false;
+pagesEl.addEventListener('pointerdown',e=>{
+  if(!arranging||e.button>0)return;const t=e.target.closest('.tile');if(!t||e.target.closest('.remove'))return;
+  drag={el:t,x:e.clientX,y:e.clientY,moved:false,page:t.closest('.page')};
+});
+window.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  if(!drag.moved){if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<8)return;drag.moved=true;drag.el.classList.add('dragging');}
+  e.preventDefault();
+  const r=drag.page.getBoundingClientRect();
+  if(e.clientY>r.bottom-50)drag.page.scrollTop+=10;else if(e.clientY<r.top+40)drag.page.scrollTop-=10;
+  const under=document.elementFromPoint(e.clientX,e.clientY);if(!under||under.closest('.page')!==drag.page)return;
+  const t=under.closest('.tile');
+  if(t&&t!==drag.el){const b=t.getBoundingClientRect();t.parentNode.insertBefore(drag.el,e.clientX>b.left+b.width/2?t.nextSibling:t);}
+  else if(!t){const g=under.closest('.group');if(g){const grid=g.querySelector('.grid');if(drag.el.parentNode!==grid)grid.append(drag.el);}}
+},{passive:false});
+function endDrag(){
+  if(!drag)return;const d=drag;drag=null;
+  if(d.moved){d.el.classList.remove('dragging');suppress=true;setTimeout(()=>suppress=false,50);syncFromDOM(d.page);}
+}
+window.addEventListener('pointerup',endDrag);window.addEventListener('pointercancel',endDrag);
+function syncFromDOM(page){
+  const p=state.profiles.find(x=>x.id===page.dataset.pid);const all=new Map();
+  p.groups.forEach(g=>g.items.forEach(it=>all.set(it.id,it)));
+  page.querySelectorAll('.group').forEach(gEl=>{const g=p.groups.find(x=>x.id===gEl.dataset.gid);
+    if(g)g.items=[...gEl.querySelectorAll('.tile')].map(t=>all.get(t.dataset.id)).filter(Boolean);});
+  save();render();
+}
+/* open in matching Brave profile (Linux helper); setting is per device, not in backups */
+const PL_KEY='pb-profile-links';
+let profLinks=false;try{profLinks=localStorage.getItem(PL_KEY)==='1';}catch(e){}
+function showPL(){$('#plState').textContent=profLinks?'On':'Off';}
+showPL();
+$('#mProfLinks').onclick=()=>{profLinks=!profLinks;try{localStorage.setItem(PL_KEY,profLinks?'1':'0');}catch(e){}showPL();
+  toast(profLinks?'On. Bookmarks open in the Brave profile named like their page.':'Off. Bookmarks open normally.');};
+pagesEl.addEventListener('click',e=>{
+  const t=e.target.closest('.tile');
+  if(t&&!arranging&&profLinks&&e.button===0&&!e.ctrlKey&&!e.shiftKey&&!e.metaKey){
+    const pg=state.profiles.find(x=>x.id===t.closest('.page').dataset.pid);
+    e.preventDefault();
+    location.href='braveprofile://open?p='+encodeURIComponent(pg?pg.name:'')+'&u='+encodeURIComponent(t.getAttribute('href'));
+    return;
+  }
+  if(!t||!arranging)return;e.preventDefault();if(suppress)return;
+  if(e.target.closest('.remove'))removeItem(t.dataset.id);else openEdit(t.dataset.id);
+});
+pagesEl.addEventListener('contextmenu',e=>{if(arranging&&e.target.closest('.tile'))e.preventDefault();});
+function removeItem(id){
+  const f=findItem(id);if(!f)return;f.g.items.splice(f.i,1);save();render();
+  toast(`Removed “${f.it.title||hostOf(f.it.url)}”.`,'Undo',()=>{f.g.items.splice(f.i,0,f.it);save();render();});
+}
+
+/* ---------- dialogs ---------- */
+document.querySelectorAll('dialog').forEach(d=>{
+  let downOutside=false;
+  const outside=e=>{if(e.target!==d)return false;const r=d.getBoundingClientRect();
+    return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;};
+  d.addEventListener('pointerdown',e=>{downOutside=outside(e);});
+  d.addEventListener('click',e=>{
+    if(e.target.closest('[data-close]')){d.close();return;}
+    if(downOutside&&outside(e))d.close();
+    downOutside=false;});
+});
+function arm(btn,label,action){
+  const orig=btn.textContent;btn.classList.remove('armed');
+  btn.onclick=()=>{if(btn.classList.contains('armed')){action();return;}btn.classList.add('armed');btn.textContent=label;
+    setTimeout(()=>{btn.classList.remove('armed');btn.textContent=orig;},3500);};
+}
+function ask(title,msg,ok){return new Promise(res=>{const d=$('#confirmDlg');$('#cTitle').textContent=title;$('#cMsg').textContent=msg;$('#cYes').textContent=ok;
+  $('#cYes').onclick=()=>{d.close();res(true);};$('#cNo').onclick=()=>{d.close();res(false);};d.showModal();});}
+
+/* edit bookmark */
+let editing=null,selColor='',selIcon='',plainTile=false;
+function fillGroups(pid,gid){
+  const p=state.profiles.find(x=>x.id===pid),s=$('#fGroup');s.innerHTML='';
+  p.groups.forEach(g=>{const o=el('option',null,g.name);o.value=g.id;s.append(o);});
+  if(!p.groups.length){const o=el('option',null,'Bookmarks (new)');o.value='__new';s.append(o);}
+  if(gid)s.value=gid;
+}
+function draft(){return {title:$('#fTitle').value.trim(),url:normUrl($('#fUrl').value),label:$('#fLetters').value.trim(),color:selColor,icon:selIcon};}
+function swatches(){
+  const box=$('#swatches');box.innerHTML='';const d=draft();
+  [''].concat(PALETTE,BRAND).forEach(c=>{const b=el('button','sw',c?'':'Auto');b.type='button';const bg=c||autoColor(d);b.style.background=bg;b.style.color=textOn(bg);
+    b.setAttribute('aria-pressed',c===selColor);b.setAttribute('aria-label',c?'Colour '+c:'Automatic colour');
+    b.onclick=()=>{selColor=c;swatches();preview();};box.append(b);});
+  const cw=el('label','sw custom');cw.title='Pick any colour';const ci=el('input');ci.type='color';ci.value=/^#[\da-f]{6}$/i.test(selColor)?selColor:'#3366cc';
+  ci.setAttribute('aria-label','Pick any colour');ci.oninput=()=>{selColor=ci.value;preview();};ci.onchange=swatches;
+  const custom=selColor&&!PALETTE.includes(selColor)&&!BRAND.includes(selColor);cw.setAttribute('aria-pressed',!!custom);if(custom)cw.style.outline='2px solid var(--fg)';
+  cw.append(ci);box.append(cw);
+}
+function preview(){
+  const d=draft(),old=$('#pvIcon'),ic=iconEl(d,null);ic.id='pvIcon';old.replaceWith(ic);
+  $('#pvLabel').textContent=d.title||hostOf(d.url)||'New bookmark';
+}
+function normUrl(u){u=(u||'').trim();if(u&&!/^[a-z][a-z0-9+.-]*:/i.test(u))u='https://'+u;return u;}
+function foundNote(t){const f=$('#found');f.innerHTML='';if(t)f.append(el('span','note',t));}
+function showChoice(src){const f=$('#found');f.innerHTML='';const b=el('button','opt');b.type='button';b.setAttribute('aria-pressed','true');
+  const i=new Image();i.src=src;i.alt='Chosen icon';b.append(i);f.append(b,el('span','note','Current picture'));}
+let findRun=0;
+$('#fFind').onclick=async()=>{
+  const url=normUrl($('#fUrl').value);if(!hostOf(url)){foundNote('Add the web address first.');return;}
+  const run=++findRun;foundNote('Looking…');
+  const res=(await Promise.all(iconSources(url).map(s=>probe(s)))).filter(Boolean);
+  if(run!==findRun)return;const f=$('#found');f.innerHTML='';
+  const seen=new Set();res.sort((a,b)=>b.w-a.w).forEach(r=>{if(seen.has(r.w+'|'+r.src.split('/').pop()))return;seen.add(r.w+'|'+r.src.split('/').pop());
+    const b=el('button','opt');b.type='button';b.title=(r.src.includes('duckduckgo')?'From DuckDuckGo':'From the website')+' · '+r.w+'px';
+    b.setAttribute('aria-pressed',r.src===selIcon);const i=new Image();i.referrerPolicy='no-referrer';i.src=r.src;i.alt=b.title;b.append(i);
+    b.onclick=()=>{selIcon=r.src;f.querySelectorAll('.opt').forEach(o=>o.setAttribute('aria-pressed',o===b));preview();};f.append(b);});
+  if(!res.length)foundNote('No icon found for this site. Choose a tile colour below, or use your own picture.');
+  else f.append(el('span','note','Tap one to use it.'));
+};
+$('#fNoImg').onclick=()=>{selIcon='';plainTile=true;foundNote('Showing the name on a colour tile.');preview();};
+$('#fUpload').onclick=()=>$('#fileIcon').click();
+function useImageFile(file){
+  if(!file||!/^image\//.test(file.type))return;const fr=new FileReader();
+  fr.onload=()=>{const img=new Image();img.onload=()=>{const S=160,cv=document.createElement('canvas');cv.width=cv.height=S;const x=cv.getContext('2d');
+    x.fillStyle='#ffffff';x.fillRect(0,0,S,S);const k=Math.min(S*.86/img.width,S*.86/img.height),w=img.width*k,h=img.height*k;x.imageSmoothingQuality='high';x.drawImage(img,(S-w)/2,(S-h)/2,w,h);
+    selIcon=cv.toDataURL('image/png');showChoice(selIcon);preview();};img.src=fr.result;};
+  fr.readAsDataURL(file);
+}
+$('#fileIcon').onchange=e=>{useImageFile(e.target.files[0]);e.target.value='';};
+$('#edit').addEventListener('paste',e=>{const it=[...(e.clipboardData||{}).items||[]].find(i=>i.type.startsWith('image/'));if(it){e.preventDefault();useImageFile(it.getAsFile());}});
+function openEdit(id){
+  const f=id?findItem(id):null;editing=f;findRun++;plainTile=false;
+  $('#editTitle').textContent=f?'Edit bookmark':'Add bookmark';
+  $('#fTitle').value=f?f.it.title:'';$('#fUrl').value=f?f.it.url:'';$('#fLetters').value=f?(f.it.label||''):'';
+  selColor=f?(f.it.color||''):'';selIcon=f?(f.it.icon||''):'';$('#fErr').hidden=true;
+  if(selIcon)showChoice(selIcon);else foundNote('');
+  const ps=$('#fPage');ps.innerHTML='';state.profiles.forEach(p=>{const o=el('option',null,p.name);o.value=p.id;ps.append(o);});
+  ps.value=f?f.p.id:cur().id;fillGroups(ps.value,f?f.g.id:null);
+  $('#fDelete').hidden=!f;$('#fDelete').textContent='Delete';
+  if(f)arm($('#fDelete'),'Tap again to delete',()=>{$('#edit').close();removeItem(f.it.id);});
+  swatches();preview();$('#edit').showModal();
+}
+['fTitle','fUrl','fLetters'].forEach(i=>$('#'+i).addEventListener('input',()=>{preview();if(i!=='fLetters'&&!selColor)swatches();}));
+$('#fPage').onchange=e=>fillGroups(e.target.value);
+$('#fSave').onclick=()=>{
+  const url=normUrl($('#fUrl').value);if(!url){$('#fErr').hidden=false;return;}
+  const title=$('#fTitle').value.trim()||hostOf(url)||url,label=$('#fLetters').value.trim();
+  const p=state.profiles.find(x=>x.id===$('#fPage').value);let g;
+  if($('#fGroup').value==='__new'){g={id:uid(),name:'Bookmarks',items:[]};p.groups.push(g);}else g=p.groups.find(x=>x.id===$('#fGroup').value);
+  const data={title,url,label:label||undefined,color:selColor||undefined,icon:selIcon||undefined};
+  if(editing){const it=Object.assign(editing.it,data);if(selIcon)delete it.noIcon;else if(plainTile)it.noIcon=true;if(editing.g!==g){editing.g.items.splice(editing.i,1);g.items.push(it);}}
+  else g.items.push(Object.assign({id:uid()},data));
+  save();$('#edit').close();state.current=state.profiles.indexOf(p);render();
+};
+$('#bAdd').onclick=()=>openEdit(null);
+
+/* group */
+let gEdit=null;
+function openGroup(p,g){
+  gEdit={p,g};$('#gName').value=g.name;
+  const n=g.items.length;$('#gDelete').textContent='Delete group';
+  arm($('#gDelete'),n?`Tap again: delete with ${n} bookmark${n>1?'s':''}`:'Tap again to delete',()=>{p.groups.splice(p.groups.indexOf(g),1);save();$('#group').close();render();});
+  $('#group').showModal();
+}
+$('#gSave').onclick=()=>{gEdit.g.name=$('#gName').value.trim()||'Bookmarks';save();$('#group').close();render();};
+
+/* pages */
+function renderPlist(){
+  const box=$('#plist');box.innerHTML='';
+  state.profiles.forEach((p,i)=>{
+    const r=el('div','prow');const inp=el('input');inp.value=p.name;inp.setAttribute('aria-label','Page name');
+    inp.oninput=()=>{p.name=inp.value.trim()||'Profile';save();};
+    r.dataset.pid=p.id;
+    const grip=el('span','grip','⠿');grip.title='Drag to reorder';grip.setAttribute('aria-label','Drag to reorder');
+    grip.addEventListener('pointerdown',e=>startPDrag(e,r));
+    const del=el('button','btn danger','Delete');del.disabled=state.profiles.length===1;
+    arm(del,'Sure?',()=>{state.profiles.splice(i,1);state.current=Math.min(state.current,state.profiles.length-1);save();renderPlist();});
+    r.append(grip,inp,del);box.append(r);
+  });
+}
+function startPDrag(e,row){
+  e.preventDefault();const box=$('#plist');row.classList.add('dragging');
+  try{e.target.setPointerCapture(e.pointerId);}catch(_){}
+  const move=ev=>{
+    const rows=[...box.children].filter(x=>x!==row);
+    const after=rows.find(x=>{const b=x.getBoundingClientRect();return ev.clientY<b.top+b.height/2;});
+    if(after){if(row.nextSibling!==after)box.insertBefore(row,after);}else if(box.lastChild!==row)box.append(row);
+  };
+  const end=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);
+    row.classList.remove('dragging');
+    const curId=cur().id,order=[...box.children].map(x=>x.dataset.pid);
+    state.profiles.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+    state.current=Math.max(0,state.profiles.findIndex(p=>p.id===curId));save();renderPlist();};
+  window.addEventListener('pointermove',move);window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);
+}
+function newPage(){state.profiles.push({id:uid(),name:'Profile '+(state.profiles.length+1),zoom:76,groups:[{id:uid(),name:'Bookmarks',items:[]}]});save();}
+$('#pAdd').onclick=()=>{newPage();renderPlist();
+  const ins=$('#plist').querySelectorAll('input');const last=ins[ins.length-1];last.focus();last.select();};
+function addPage(){newPage();state.current=state.profiles.length-1;renderPlist();$('#pagesDlg').showModal();
+  const ins=$('#plist').querySelectorAll('input');const last=ins[ins.length-1];last.focus();last.select();}
+$('#pagesDlg').addEventListener('close',render);
+
+/* menu */
+$('#bMenu').onclick=()=>$('#menu').showModal();
+const fromMenu=fn=>()=>{$('#menu').close();fn();};
+$('#mImport').onclick=fromMenu(()=>$('#fileImport').click());
+$('#mPages').onclick=fromMenu(()=>{renderPlist();$('#pagesDlg').showModal();});
+$('#mIcons').onclick=fromMenu(async()=>{
+  const p=cur(),todo=p.groups.flatMap(g=>g.items).filter(it=>!it.icon&&!it.noIcon);
+  if(!todo.length){toast('Every bookmark on this page already has its icon or colour tile.');return;}
+  let done=0,found=0;toast(`Looking for ${todo.length} icon${todo.length>1?'s':''}…`);
+  const work=async it=>{for(const s of iconSources(it.url)){const r=await probe(s,6000);if(r&&(r.w>=48||s.includes('duckduckgo')||s.endsWith('.ico'))){it.icon=r.src;found++;break;}}
+    done++;toast(`Looking for icons… ${done} of ${todo.length}`);};
+  const q=[...todo];await Promise.all([0,1,2,3].map(async()=>{while(q.length)await work(q.shift());}));
+  save();render();toast(found?`Found ${found} of ${todo.length} icons. The rest keep their colour tile.`:'No icons found. The tiles keep their colours.');
+});
+$('#mTidy').onclick=fromMenu(()=>{
+  const p=cur(),before=JSON.stringify(p.groups);let n=0;
+  p.groups.forEach(g=>g.items.forEach(it=>{const t=tidyTitle(it.title);if(t&&t!==it.title){it.title=t;n++;}}));
+  save();render();toast(n?`Tidied ${n} name${n>1?'s':''}.`:'Names are already tidy.',n?'Undo':null,()=>{p.groups=JSON.parse(before);save();render();});
+});
+$('#mHelp').onclick=fromMenu(()=>$('#helpDlg').showModal());
+$('#mRestore').onclick=fromMenu(()=>$('#fileRestore').click());
+function backupText(){return JSON.stringify({app:'portable-bookmarks',version:1,saved:new Date().toISOString(),profiles:state.profiles});}
+$('#mBackup').onclick=fromMenu(()=>{
+  const blob=new Blob([backupText()],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='bookmarks-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast('Backup file saved to your downloads.');
+});
+$('#mCopy').onclick=()=>{const t=backupText();$('#menu').close();
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>toast('Backup copied. Paste it into a text file ending .json.'),()=>toast('Copying is blocked here; use Save backup file.'));
+  else toast('Copying is blocked here; use Save backup file.');};
+
+/* restore */
+$('#fileRestore').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  try{const s=JSON.parse(await f.text());if(!valid(s))throw 0;
+    const n=s.profiles.length;
+    if(await ask('Restore backup?',`This replaces everything here with the ${n} page${n>1?'s':''} in the backup.`,'Restore')){
+      state=tidy({profiles:s.profiles,current:0,examples:false});save();render();toast('Backup restored.');}
+  }catch(err){toast('That file isn’t a Portable Bookmarks backup.');}
+};
+
+/* import Brave export */
+function headingFor(dl){
+  const p=dl.parentElement;if(p&&p.tagName==='DT'){const h=p.querySelector(':scope > h3');if(h)return h;}
+  const s=dl.previousElementSibling;if(s){if(s.tagName==='H3')return s;const h=s.querySelector&&s.querySelector(':scope > h3');if(h)return h;}
+  return null;
+}
+function parseBrave(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');const map=new Map();
+  doc.querySelectorAll('a[href]').forEach(a=>{
+    const url=a.getAttribute('href');if(!/^https?:/i.test(url))return;
+    const path=[];let toolbar=false;
+    for(let n=a.parentElement;n;n=n.parentElement){if(n.tagName==='DL'){const h=headingFor(n);
+      if(h){path.unshift(h.textContent.trim());if(h.hasAttribute('personal_toolbar_folder'))toolbar=path.length===1;}}}
+    if(path.length>1&&(toolbar||/^(bookmarks bar|other bookmarks|mobile bookmarks)$/i.test(path[0])))path.shift();
+    const name=path.join(' › ')||'Bookmarks';
+    if(!map.has(name))map.set(name,{id:uid(),name,items:[]});
+    map.get(name).items.push({id:uid(),title:tidyTitle(a.textContent)||hostOf(url),url});
+  });
+  return [...map.values()];
+}
+let pending=null;
+$('#fileImport').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  const groups=parseBrave(await f.text());const n=groups.reduce((s,g)=>s+g.items.length,0);
+  if(!n){toast('No bookmarks found in that file. Choose the file Brave exported.');return;}
+  pending=groups;
+  $('#iSummary').textContent=`Found ${n} bookmark${n>1?'s':''} in ${groups.length} group${groups.length>1?'s':''}.`+(state.examples?' The example pages will be removed.':'');
+  $('#iAddLabel').textContent=`Add to “${cur().name}”`;
+  const used=new Set(state.examples?[]:state.profiles.map(p=>p.name));let k=state.examples?1:state.profiles.length+1;
+  while(used.has('Profile '+k))k++;$('#iName').value='Profile '+k;
+  document.querySelector('input[name=iMode][value=new]').checked=true;$('#iNameField').hidden=false;
+  document.querySelector('input[name=iMode][value=add]').parentElement.hidden=!!state.examples;
+  $('#importDlg').showModal();
+  setTimeout(()=>{const n=$('#iName');n.focus();n.select();},50);
+};
+document.querySelectorAll('input[name=iMode]').forEach(r=>r.onchange=()=>{$('#iNameField').hidden=r.value!=='new'||!r.checked;});
+$('#iGo').onclick=()=>{
+  const mode=document.querySelector('input[name=iMode]:checked').value;
+  if(mode==='new'){
+    const p={id:uid(),name:$('#iName').value.trim()||'Profile',zoom:76,groups:pending};
+    if(state.examples){state.profiles=[p];state.examples=false;state.current=0;}else{state.profiles.push(p);state.current=state.profiles.length-1;}
+  }else{
+    const p=cur();pending.forEach(g=>{const ex=p.groups.find(x=>x.name===g.name);if(ex)ex.items.push(...g.items);else p.groups.push(g);});
+  }
+  pending=null;save();$('#importDlg').close();render();
+  setTimeout(()=>$('#bFit').click(),120);
+};
+function clearExamples(){
+  ask('Clear the examples?','You will start with one empty page, ready for your Brave bookmarks.','Clear').then(ok=>{if(!ok)return;
+    state={examples:false,current:0,profiles:[{id:uid(),name:'Profile 1',zoom:76,groups:[{id:uid(),name:'Bookmarks',items:[]}]}]};save();render();});
+}
+
+/* toast */
+let toastT;
+function toast(msg,label,action){
+  const t=$('#toast');t.innerHTML='';t.append(el('span',null,msg));
+  if(label){const b=el('button','toast-btn',label);b.onclick=()=>{t.hidden=true;action();};t.append(b);}
+  t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,5000);
+}
+
+render();
+})();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+
+</body>
+</html>
